@@ -26,7 +26,15 @@ class Server {
    * Configures Express middleware
    */
   setupMiddleware() {
-    this.app.use(cors());
+    // CORS configuration - allow all origins for hackathon
+    // Must be before routes
+    this.app.use(cors({
+      origin: '*',
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+      credentials: false
+    }));
+    
     this.app.use(express.json({ limit: '10mb' })); // Increase limit for article content
   }
 
@@ -101,6 +109,7 @@ class Server {
    */
   async start() {
     try {
+      this.setupMiddleware(); // Setup middleware first (before routes)
       await this.initializeServices();
       this.setupRoutes();
 
