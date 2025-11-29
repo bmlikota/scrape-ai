@@ -31,19 +31,11 @@ export class RssClient {
   }
 
   /**
-   * Fetches The Hacker News RSS feed
+   * Fetches The Hacker News RSS feed (thehackernews.com)
    * @returns {Promise<Object>}
    */
   async fetchTheHackerNewsFeed() {
     return this.fetchFeed(RSS_FEED_URLS.THE_HACKER_NEWS);
-  }
-
-  /**
-   * Fetches Hacker News RSS feed
-   * @returns {Promise<Object>}
-   */
-  async fetchHackerNewsFeed() {
-    return this.fetchFeed(RSS_FEED_URLS.HACKER_NEWS);
   }
 }
 

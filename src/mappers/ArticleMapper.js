@@ -8,9 +8,10 @@ import { Article } from '../models/Article.js';
 export class ArticleMapper {
   /**
    * Maps RSS feed item to Article
+   * Uses URL as stable identifier since RSS doesn't provide unique IDs
    * @param {Object} rssItem - Raw RSS item
    * @param {string} source - Source identifier
-   * @param {number} index - Item index for ID generation
+   * @param {number} index - Item index (fallback if no link)
    * @returns {Article}
    */
   static fromRssItem(rssItem, source, index = 0) {
@@ -32,8 +33,14 @@ export class ArticleMapper {
       content = rssItem['content:encoded'] || rssItem.content || '';
     }
 
+    // Use URL as stable identifier for RSS items (URLs are unique per article)
+    // Fallback to source-index if no link available
+    const articleId = rssItem.link 
+      ? this.generateId(source, rssItem.link)
+      : this.generateId(source, index);
+
     return new Article({
-      id: this.generateId(source, index),
+      id: articleId,
       title: rssItem.title || '',
       link: rssItem.link || '',
       description: description,
@@ -45,31 +52,6 @@ export class ArticleMapper {
     });
   }
 
-  /**
-   * Maps Hacker News API item to Article
-   * @param {Object} apiItem - Raw API item
-   * @param {string} source - Source identifier
-   * @returns {Article|null} Returns null if item is invalid
-   */
-  static fromApiItem(apiItem, source) {
-    if (!this.isValidApiItem(apiItem)) {
-      return null;
-    }
-
-    return new Article({
-      id: this.generateId(source, apiItem.id),
-      title: apiItem.title || '',
-      link: apiItem.url || this.generateHackerNewsLink(apiItem.id),
-      description: '',
-      content: '',
-      pubDate: this.convertUnixTimestamp(apiItem.time),
-      author: apiItem.by || 'Unknown',
-      source: source,
-      score: apiItem.score || 0,
-      comments: apiItem.descendants || 0,
-      categories: []
-    });
-  }
 
   /**
    * Extracts categories from RSS item
@@ -90,42 +72,22 @@ export class ArticleMapper {
     return categories;
   }
 
-  /**
-   * Validates if API item is a valid story
-   * @param {Object} item - API item
-   * @returns {boolean}
-   */
-  static isValidApiItem(item) {
-    return item && item.type === 'story' && item.url;
-  }
 
   /**
-   * Generates unique article ID
+   * Generates unique article ID for RSS items
+   * Uses source + URL as stable identifier (URLs are unique per article)
    * @param {string} source - Source identifier
-   * @param {string|number} identifier - Unique identifier
+   * @param {string|number} identifier - Unique identifier (e.g., RSS URL, fallback index)
    * @returns {string}
    */
   static generateId(source, identifier) {
-    return `${source}-${identifier}-${Date.now()}`;
+    // Use stable ID without timestamp to ensure same article = same ID
+    // This allows proper deduplication in the database
+    // Format: source-url (URL is unique per article)
+    return `${source}-${identifier}`;
   }
 
-  /**
-   * Converts Unix timestamp to ISO string
-   * @param {number} timestamp - Unix timestamp in seconds
-   * @returns {string} ISO date string
-   */
-  static convertUnixTimestamp(timestamp) {
-    return new Date(timestamp * 1000).toISOString();
-  }
 
-  /**
-   * Generates Hacker News discussion link
-   * @param {number} itemId - Item ID
-   * @returns {string}
-   */
-  static generateHackerNewsLink(itemId) {
-    return `https://news.ycombinator.com/item?id=${itemId}`;
-  }
 
   /**
    * Extracts plain text from HTML content

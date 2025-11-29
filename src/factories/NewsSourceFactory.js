@@ -1,7 +1,4 @@
 import { TheHackerNewsSource } from '../sources/TheHackerNewsSource.js';
-import { HackerNewsSource } from '../sources/HackerNewsSource.js';
-import { HackerNewsRssSource } from '../sources/HackerNewsRssSource.js';
-import { HackerNewsApiSource } from '../sources/HackerNewsApiSource.js';
 import { NEWS_SOURCES, SOURCE_ALIASES } from '../config/constants.js';
 
 /**
@@ -23,15 +20,6 @@ export class NewsSourceFactory {
     switch (normalizedSource) {
       case NEWS_SOURCES.THE_HACKER_NEWS:
         return new TheHackerNewsSource();
-
-      case NEWS_SOURCES.HACKER_NEWS:
-        return new HackerNewsSource();
-
-      case NEWS_SOURCES.HACKER_NEWS_RSS:
-        return new HackerNewsRssSource();
-
-      case NEWS_SOURCES.HACKER_NEWS_API:
-        return new HackerNewsApiSource(undefined, 'new'); // Default to 'new' for latest articles
 
       default:
         throw new Error(`Unknown news source: ${sourceIdentifier}`);
