@@ -14,7 +14,8 @@ export class Article {
     source,
     categories = [],
     score = 0,
-    comments = 0
+    comments = 0,
+    summary = ''
   }) {
     this.id = id;
     this.title = title;
@@ -27,6 +28,7 @@ export class Article {
     this.categories = categories;
     this.score = score;
     this.comments = comments;
+    this.summary = summary;
   }
 
   /**
@@ -111,7 +113,8 @@ export class Article {
       source: this.source,
       categories: this.categories,
       score: this.score,
-      comments: this.comments
+      comments: this.comments,
+      summary: this.summary
     };
   }
 }

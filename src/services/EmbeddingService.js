@@ -60,14 +60,15 @@ export class EmbeddingService {
 
       const duration = Date.now() - startTime;
       const embedding = response.data[0].embedding;
+      const tokens = response.usage?.total_tokens || 0;
 
       Logger.success('Embedding generated', { 
         dimensions: embedding.length,
         duration: `${duration}ms`,
-        tokens: response.usage?.total_tokens 
+        tokens: tokens
       });
 
-      return embedding;
+      return { embedding, tokens };
     } catch (error) {
       const duration = Date.now() - startTime;
       Logger.error('Failed to generate embedding', { 
@@ -95,7 +96,8 @@ export class EmbeddingService {
     // Combine title and content for better semantic search
     // Title is often more descriptive than content snippets
     const textToEmbed = `${title}\n\n${content}`;
-    return this.generateEmbedding(textToEmbed);
+    const result = await this.generateEmbedding(textToEmbed);
+    return result;
   }
 
   /**
@@ -172,12 +174,15 @@ export class EmbeddingService {
     if (chunks.length === 1) {
       // Article fits in one chunk, use single embedding
       Logger.debug('Article fits in single chunk, using standard embedding');
-      const embedding = await this.generateEmbedding(fullText);
-      return [{
-        chunkIndex: 0,
-        chunkText: fullText,
-        embedding
-      }];
+      const result = await this.generateEmbedding(fullText);
+      return {
+        chunks: [{
+          index: 0,
+          text: fullText,
+          embedding: result.embedding
+        }],
+        totalTokens: result.tokens
+      };
     }
 
     Logger.info('Article split into chunks', {
@@ -185,27 +190,36 @@ export class EmbeddingService {
       avgChunkSize: Math.round(chunks.reduce((sum, c) => sum + c.length, 0) / chunks.length)
     });
 
-    // Generate embeddings for each chunk in parallel
-    const embeddingPromises = chunks.map(async (chunk, index) => {
-      const embedding = await this.generateEmbedding(chunk);
-      return {
-        chunkIndex: index,
-        chunkText: chunk,
-        embedding
-      };
-    });
+    // Generate embeddings for each chunk
+    const results = [];
+    let totalTokens = 0;
 
-    const results = await Promise.all(embeddingPromises);
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      Logger.debug(`Generating embedding for chunk ${i + 1}/${chunks.length}`, {
+        chunkLength: chunk.length
+      });
+      const result = await this.generateEmbedding(chunk);
+      totalTokens += result.tokens;
+      results.push({
+        index: i,
+        text: chunk,
+        embedding: result.embedding
+      });
+    }
 
     const duration = Date.now() - startTime;
     Logger.success('Chunked embeddings generated', {
       totalChunks: results.length,
-      totalTokens: results.reduce((sum, r) => sum + r.chunkText.length, 0),
+      totalTokens: totalTokens,
       duration: `${duration}ms`,
       avgTimePerChunk: `${Math.round(duration / results.length)}ms`
     });
 
-    return results;
+    return {
+      chunks: results,
+      totalTokens: totalTokens
+    };
   }
 }
 

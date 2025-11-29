@@ -149,7 +149,8 @@ export class ArticleController {
       const { ArticleStorageService } = await import('../services/ArticleStorageService.js');
       const storageService = new ArticleStorageService(
         req.app.locals.articleRepository,
-        req.app.locals.embeddingService
+        req.app.locals.embeddingService,
+        req.app.locals.summarizationService || null
       );
 
       const result = await storageService.storeArticles(articles);
@@ -302,7 +303,8 @@ export class ArticleController {
       const { ArticleStorageService } = await import('../services/ArticleStorageService.js');
       const storageService = new ArticleStorageService(
         req.app.locals.articleRepository,
-        req.app.locals.embeddingService
+        req.app.locals.embeddingService,
+        req.app.locals.summarizationService || null
       );
 
       const result = await storageService.storeArticles(articles);
@@ -315,7 +317,8 @@ export class ArticleController {
         stored: result.stored,
         skipped: result.skipped,
         totalDuration: `${totalDuration}ms`,
-        avgTimePerArticle: `${Math.round(totalDuration / articles.length)}ms`
+        avgTimePerArticle: `${Math.round(totalDuration / articles.length)}ms`,
+        tokens: result.tokens
       });
 
       res.json({
@@ -323,7 +326,12 @@ export class ArticleController {
         message: 'Articles fetched and stored successfully',
         fetched: articles.length,
         stored: result.stored,
-        skipped: result.skipped
+        skipped: result.skipped,
+        tokens: result.tokens || {
+          summary: 0,
+          embedding: 0,
+          total: 0
+        }
       });
     } catch (error) {
       const totalDuration = Date.now() - startTime;

@@ -51,7 +51,7 @@ class Server {
       // Initialize embedding service
       const openaiApiKey = process.env.OPENAI_API_KEY;
       if (!openaiApiKey) {
-        Logger.warn('OpenAI API key not set - semantic search will not work');
+        Logger.warn('OpenAI API key not set - semantic search and summarization will not work');
       } else {
         const embeddingModel = process.env.EMBEDDING_MODEL || 'text-embedding-3-small';
         const embeddingDimensions = parseInt(process.env.EMBEDDING_DIMENSIONS || '1536', 10);
@@ -60,6 +60,15 @@ class Server {
         Logger.success('Embedding service initialized', { 
           model: embeddingModel, 
           dimensions: embeddingDimensions 
+        });
+
+        // Initialize summarization service
+        const { SummarizationService } = await import('./services/SummarizationService.js');
+        const summarizationModel = process.env.SUMMARIZATION_MODEL || 'gpt-4o-mini';
+        const summarizationService = new SummarizationService(openaiApiKey, summarizationModel);
+        this.app.locals.summarizationService = summarizationService;
+        Logger.success('Summarization service initialized', { 
+          model: summarizationModel 
         });
       }
 

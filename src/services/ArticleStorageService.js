@@ -8,9 +8,10 @@ import { Logger } from '../utils/Logger.js';
  * Handles deduplication and embedding generation
  */
 export class ArticleStorageService {
-  constructor(articleRepository, embeddingService) {
+  constructor(articleRepository, embeddingService, summarizationService = null) {
     this.repository = articleRepository;
     this.embeddingService = embeddingService;
+    this.summarizationService = summarizationService;
   }
 
   /**
@@ -56,6 +57,34 @@ export class ArticleStorageService {
         source: article.source
       });
 
+      // Generate summary before storing
+      let summary = '';
+      let summaryTokens = 0;
+      if (this.summarizationService) {
+        try {
+          Logger.debug('Generating article summary', { articleId: article.id });
+          const summaryResult = await this.summarizationService.generateSummary(
+            article.title,
+            article.content
+          );
+          summary = summaryResult.summary;
+          summaryTokens = summaryResult.tokens;
+          // Update article with summary
+          article.summary = summary;
+          Logger.success('Summary generated', {
+            articleId: article.id,
+            summaryLength: summary.length,
+            tokens: summaryTokens
+          });
+        } catch (error) {
+          Logger.warn('Failed to generate summary, continuing without it', {
+            articleId: article.id,
+            error: error.message
+          });
+          // Continue without summary if generation fails
+        }
+      }
+
       // Check if article needs chunking (title + content > 8000 chars)
       const fullText = `${article.title}\n\n${article.content}`;
       const needsChunking = fullText.length > 8000;
@@ -67,10 +96,12 @@ export class ArticleStorageService {
         });
 
         // Generate chunked embeddings
-        const chunks = await this.embeddingService.generateChunkedEmbeddings(
+        const chunkResult = await this.embeddingService.generateChunkedEmbeddings(
           article.title,
           article.content
         );
+        const chunks = chunkResult.chunks;
+        const embeddingTokens = chunkResult.totalTokens;
 
         // Store article without embedding (chunks will be stored separately)
         // Pass null/empty array to indicate no embedding (article uses chunks)
@@ -83,16 +114,30 @@ export class ArticleStorageService {
         Logger.success('Article stored with chunks', {
           articleId: article.id,
           chunkCount: chunks.length,
-          duration: `${duration}ms`
+          duration: `${duration}ms`,
+          embeddingTokens: embeddingTokens,
+          summaryTokens: summaryTokens
         });
 
-        return { stored: true, article: stored, chunked: true, chunkCount: chunks.length };
+        return { 
+          stored: true, 
+          article: stored, 
+          chunked: true, 
+          chunkCount: chunks.length,
+          tokens: {
+            summary: summaryTokens,
+            embedding: embeddingTokens,
+            total: summaryTokens + embeddingTokens
+          }
+        };
       } else {
         // Generate single embedding for article (title + content)
-        const embedding = await this.embeddingService.generateArticleEmbedding(
+        const embeddingResult = await this.embeddingService.generateArticleEmbedding(
           article.title,
           article.content
         );
+        const embedding = embeddingResult.embedding;
+        const embeddingTokens = embeddingResult.tokens;
 
         Logger.debug('Storing article in database', { articleId: article.id });
 
@@ -102,10 +147,21 @@ export class ArticleStorageService {
         const duration = Date.now() - startTime;
         Logger.success('Article stored successfully', {
           articleId: article.id,
-          duration: `${duration}ms`
+          duration: `${duration}ms`,
+          embeddingTokens: embeddingTokens,
+          summaryTokens: summaryTokens
         });
 
-        return { stored: true, article: stored, chunked: false };
+        return { 
+          stored: true, 
+          article: stored, 
+          chunked: false,
+          tokens: {
+            summary: summaryTokens,
+            embedding: embeddingTokens,
+            total: summaryTokens + embeddingTokens
+          }
+        };
       }
     } catch (error) {
       const duration = Date.now() - startTime;
@@ -130,6 +186,8 @@ export class ArticleStorageService {
     let stored = 0;
     let skipped = 0;
     let failed = 0;
+    let totalSummaryTokens = 0;
+    let totalEmbeddingTokens = 0;
 
     for (let i = 0; i < articles.length; i++) {
       const article = articles[i];
@@ -139,6 +197,10 @@ export class ArticleStorageService {
         const result = await this.storeArticle(article);
         if (result.stored) {
           stored++;
+          if (result.tokens) {
+            totalSummaryTokens += result.tokens.summary || 0;
+            totalEmbeddingTokens += result.tokens.embedding || 0;
+          }
         } else {
           skipped++;
         }
@@ -152,14 +214,29 @@ export class ArticleStorageService {
       }
     }
 
+    const totalTokens = totalSummaryTokens + totalEmbeddingTokens;
+
     Logger.success('Batch storage completed', {
       total,
       stored,
       skipped,
-      failed
+      failed,
+      tokens: {
+        summary: totalSummaryTokens,
+        embedding: totalEmbeddingTokens,
+        total: totalTokens
+      }
     });
 
-    return { stored, skipped };
+    return { 
+      stored, 
+      skipped,
+      tokens: {
+        summary: totalSummaryTokens,
+        embedding: totalEmbeddingTokens,
+        total: totalTokens
+      }
+    };
   }
 }
 

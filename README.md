@@ -22,7 +22,9 @@ src/
 ├── sources/          # News source implementations
 ├── factories/        # Factory patterns (NewsSourceFactory)
 ├── mappers/          # Data transformation (ArticleMapper)
-├── services/         # Business logic (ArticleService)
+├── services/         # Business logic (ArticleService, EmbeddingService, etc.)
+├── repositories/     # Data access layer (ArticleRepository)
+├── database/         # Database client (DatabaseClient)
 ├── controllers/      # HTTP request handlers (ArticleController)
 ├── validators/       # Input validation (RequestValidator)
 ├── routes/           # Route definitions
@@ -33,6 +35,8 @@ src/
 
 ### Prerequisites
 - Node.js 18+ (with ES modules support)
+- Docker and Docker Compose
+- OpenAI API key (for embeddings)
 
 ### Installation
 
@@ -40,17 +44,41 @@ src/
 npm install
 ```
 
-### Running the Server
+### Environment Setup
 
+1. Copy `.env.example` to `.env`:
 ```bash
-# Development mode (with auto-reload)
-npm run dev
+cp .env.example .env
+```
 
-# Production mode
+2. Edit `.env` and add your OpenAI API key:
+```env
+OPENAI_API_KEY=your_openai_api_key_here
+```
+
+### Running with Docker
+
+1. **Start PostgreSQL with pgvector:**
+```bash
+docker-compose up -d
+```
+
+2. **Start the server:**
+```bash
 npm start
 ```
 
-The server will start on `http://localhost:3000` (or the port specified in `.env`).
+The server will start on `http://localhost:3000` and automatically initialize the database schema.
+
+### Verify Database
+
+```bash
+# Check if PostgreSQL is running
+docker ps
+
+# Connect to database (optional)
+docker exec -it sheepai-postgres psql -U sheepai -d sheepai_db
+```
 
 ## 📡 API Endpoints
 
@@ -59,59 +87,140 @@ The server will start on `http://localhost:3000` (or the port specified in `.env
 GET /health
 ```
 
-Returns server status and timestamp.
+Returns server status, timestamp, and database connection status.
 
 ### Get Articles
+
+#### By Source and Limit
 ```
 GET /api/articles?limit=30&source=thehackernews&fetchFullContent=false
 ```
 
-**Query Parameters:**
-- `limit` (optional): Number of articles to fetch (default: 30, min: 1, max: 100)
-- `source` (optional): Source to fetch from
-  - `thehackernews` or `thn` - The Hacker News RSS (cybersecurity focus) - **Default**
-  - `hackernews` or `hn` - Hacker News API (with RSS fallback)
-  - `hackernews-rss` - Hacker News RSS only
-  - `hackernews-api` - Hacker News API only
-- `fetchFullContent` (optional): Whether to fetch full article content from URLs (default: false)
-  - `true` or `1` - Fetches full content from article URLs (slower but complete)
-  - `false` or `0` - Uses RSS feed content only (faster but may be snippets)
-  
-**Important:** RSS feeds typically only provide article snippets (first few sentences). To get the **complete article text**, you **must** set `fetchFullContent=true`. This will fetch and parse the full article from the article URL.
-
-**Example with full content:**
-```bash
-GET /api/articles?limit=5&source=thehackernews&fetchFullContent=true
+#### By Article IDs
+```
+GET /api/articles?ids=46084956,46045207,46083004
 ```
 
-**Example Response:**
-```json
+#### Get Single Article by ID
+```
+GET /api/articles/46084956
+```
+
+### Store Articles with Embeddings
+
+Store articles in the database with vector embeddings. Only new articles (not already in DB) will be embedded and stored.
+
+```
+POST /api/articles/store
+Content-Type: application/json
+
 {
-  "success": true,
-  "count": 30,
   "articles": [
     {
-      "id": "thehackernews-0-1234567890",
+      "id": "hackernews-api-46084956-1234567890",
       "title": "Article Title",
       "link": "https://...",
-      "description": "Article description...",
+      "description": "Description...",
       "content": "Full article content...",
       "pubDate": "2024-01-01T00:00:00.000Z",
-      "author": "The Hacker News",
-      "source": "thehackernews",
-      "categories": [],
-      "score": 0,
-      "comments": 0
+      "author": "Author Name",
+      "source": "hackernews-api",
+      "score": 100,
+      "comments": 50
     }
   ]
 }
 ```
 
-**Error Response:**
+**Response:**
 ```json
 {
-  "success": false,
-  "errors": ["Limit must be at least 1", "Source must be a non-empty string"]
+  "success": true,
+  "stored": 5,
+  "skipped": 2,
+  "total": 7
+}
+```
+
+### Fetch, Embed, and Store Articles (All-in-One)
+
+Fetch articles from Hacker News, generate embeddings, and store them in the database. Perfect for cronjobs.
+
+```
+POST /api/articles/fetch-and-store
+Content-Type: application/json
+
+{
+  "limit": 30
+}
+```
+
+**Request Body:**
+- `limit` (optional): Number of articles to fetch from Hacker News (default: 30, max: 100)
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Articles fetched and stored successfully",
+  "fetched": 30,
+  "stored": 25,
+  "skipped": 5
+}
+```
+
+**Note:** This endpoint automatically:
+1. Fetches latest articles from The Hacker News (thehackernews.com) via RSS
+2. Fetches full content for each article via HTML scraping
+3. Generates embeddings for new articles
+4. Stores them in the database (skips duplicates)
+
+**Example for Cronjob:**
+```bash
+# Fetch and store 30 articles from The Hacker News every hour
+curl -X POST http://localhost:3000/api/articles/fetch-and-store?limit=30
+```
+
+### Semantic Search
+
+Search articles by semantic similarity using vector embeddings.
+
+```
+POST /api/articles/search
+Content-Type: application/json
+
+{
+  "prompt": "cybersecurity threats and malware attacks",
+  "limit": 10,
+  "similarityThreshold": 0.7
+}
+```
+
+**Query Parameters:**
+- `prompt` (required): Search query/prompt
+- `limit` (optional): Maximum results (default: 10)
+- `similarityThreshold` (optional): Minimum similarity 0-1 (default: 0.7)
+
+**Response:**
+```json
+{
+  "success": true,
+  "count": 5,
+  "articles": [
+    {
+      "articleId": "hackernews-api-46084956-1234567890",
+      "title": "Article Title",
+      "link": "https://...",
+      "description": "Description...",
+      "content": "Full content...",
+      "pubDate": "2024-01-01T00:00:00.000Z",
+      "author": "Author",
+      "source": "hackernews-api",
+      "score": 100,
+      "comments": 50,
+      "similarity": 0.89
+    }
+  ]
 }
 ```
 
@@ -119,47 +228,36 @@ GET /api/articles?limit=5&source=thehackernews&fetchFullContent=true
 
 - ✅ Clean Architecture with SOLID principles
 - ✅ Fetch articles from The Hacker News (thehackernews.com) via RSS
-- ✅ Fetch articles from Hacker News (news.ycombinator.com) via API or RSS
-- ✅ Structured article data with domain models
-- ✅ Request validation and error handling
-- ✅ Factory pattern for extensible news sources
-- ✅ Dependency injection for testability
-- ✅ RESTful API endpoints with proper HTTP status codes
-- ✅ CORS enabled for frontend integration
+- ✅ PostgreSQL with pgvector for vector storage
+- ✅ OpenAI embeddings for semantic search
+- ✅ Automatic deduplication (by article ID)
+- ✅ Semantic search by user prompts
+- ✅ RESTful API endpoints
+- ✅ Docker support for easy deployment
 
 ## 🧪 Design Patterns Used
 
 1. **Factory Pattern**: `NewsSourceFactory` creates appropriate news source instances
-2. **Strategy Pattern**: `HackerNewsSource` uses API with RSS fallback
+2. **Repository Pattern**: `ArticleRepository` abstracts database access
 3. **Dependency Injection**: Services receive dependencies via constructor
-4. **Repository Pattern**: Abstract `NewsSource` interface with concrete implementations
-5. **Mapper Pattern**: `ArticleMapper` transforms raw data to domain models
+4. **Service Layer**: Business logic separated from data access
 
-## 📋 Next Steps
+## 📋 Workflow
 
-1. **AI Integration**: Add OpenAI/LLM integration for:
-   - Article categorization (Malware, Phishing, Social Networks, AI Agents)
-   - Article summarization
-   - Multi-model consensus for reliability
-
-2. **Scheduling**: Implement cron jobs for scheduled updates
-
-3. **Filtering**: Add category-based filtering
-
-4. **Storage**: Add database to store articles and user preferences
-
-5. **Notifications**: Implement email/notification system
-
-6. **Frontend**: Build UI with visualizations and rich presentation formats
-
-7. **Testing**: Add unit tests and integration tests
+1. **Fetch Articles**: Use `/api/articles` to get articles from sources
+2. **Store with Embeddings**: Use `/api/articles/store` to store articles (only new ones will be embedded)
+3. **Semantic Search**: Use `/api/articles/search` to find relevant articles by prompt
 
 ## 🛠️ Tech Stack
 
 - **Node.js** - Runtime
 - **Express** - Web framework
+- **PostgreSQL** - Database
+- **pgvector** - Vector similarity search
+- **OpenAI** - Embeddings generation
 - **rss-parser** - RSS feed parsing
 - **node-fetch** - HTTP requests
+- **Docker** - Containerization
 
 ## 📝 Code Quality
 
@@ -168,3 +266,36 @@ GET /api/articles?limit=5&source=thehackernews&fetchFullContent=true
 - **Error Handling**: Comprehensive error handling with proper messages
 - **Validation**: Input validation for all user inputs
 - **Documentation**: JSDoc comments for all public methods
+
+## 🔧 Configuration
+
+### Environment Variables
+
+- `PORT` - Server port (default: 3000)
+- `DATABASE_URL` - PostgreSQL connection string
+- `OPENAI_API_KEY` - OpenAI API key for embeddings
+- `EMBEDDING_MODEL` - Embedding model (default: text-embedding-3-small)
+- `EMBEDDING_DIMENSIONS` - Vector dimensions (default: 1536)
+
+### Database Schema
+
+The database automatically creates:
+- `articles` table with vector column
+- HNSW index for fast similarity search
+- Indexes for article_id, source, and date
+
+## 🐳 Docker Commands
+
+```bash
+# Start database
+docker-compose up -d
+
+# Stop database
+docker-compose down
+
+# View logs
+docker-compose logs -f
+
+# Remove database (⚠️ deletes data)
+docker-compose down -v
+```

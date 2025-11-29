@@ -40,6 +40,7 @@ export class ArticleRepository {
       link,
       description,
       content,
+      summary = '',
       pubDate,
       author,
       source,
@@ -51,6 +52,7 @@ export class ArticleRepository {
       articleId,
       titleLength: title?.length || 0,
       contentLength: content?.length || 0,
+      summaryLength: summary?.length || 0,
       embeddingDimensions: embedding?.length || 0
     });
 
@@ -62,16 +64,17 @@ export class ArticleRepository {
 
       const result = await this.db.query(`
         INSERT INTO articles (
-          article_id, title, link, description, content, 
+          article_id, title, link, description, content, summary,
           pub_date, author, source, score, comments, embedding
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         ON CONFLICT (article_id) 
         DO UPDATE SET
           title = EXCLUDED.title,
           link = EXCLUDED.link,
           description = EXCLUDED.description,
           content = EXCLUDED.content,
+          summary = EXCLUDED.summary,
           pub_date = EXCLUDED.pub_date,
           author = EXCLUDED.author,
           source = EXCLUDED.source,
@@ -86,6 +89,7 @@ export class ArticleRepository {
         link,
         description || '',
         content,
+        summary || '',
         new Date(pubDate),
         author || '',
         source,
@@ -151,6 +155,7 @@ export class ArticleRepository {
           link,
           description,
           content,
+          summary,
           pub_date,
           author,
           source,
@@ -175,6 +180,7 @@ export class ArticleRepository {
         link: row.link,
         description: row.description,
         content: row.content,
+        summary: row.summary,
         pubDate: row.pub_date,
         author: row.author,
         source: row.source,
@@ -212,24 +218,25 @@ export class ArticleRepository {
       return [];
     }
 
-    const placeholders = articleIds.map((_, i) => `$${i + 1}`).join(', ');
-    const result = await this.db.query(
-      `SELECT * FROM articles WHERE article_id IN (${placeholders})`,
-      articleIds
-    );
+      const placeholders = articleIds.map((_, i) => `$${i + 1}`).join(', ');
+      const result = await this.db.query(
+        `SELECT * FROM articles WHERE article_id IN (${placeholders})`,
+        articleIds
+      );
 
-    return result.rows.map(row => ({
-      articleId: row.article_id,
-      title: row.title,
-      link: row.link,
-      description: row.description,
-      content: row.content,
-      pubDate: row.pub_date,
-      author: row.author,
-      source: row.source,
-      score: row.score,
-      comments: row.comments
-    }));
+      return result.rows.map(row => ({
+        articleId: row.article_id,
+        title: row.title,
+        link: row.link,
+        description: row.description,
+        content: row.content,
+        summary: row.summary,
+        pubDate: row.pub_date,
+        author: row.author,
+        source: row.source,
+        score: row.score,
+        comments: row.comments
+      }));
   }
 
   /**
@@ -266,8 +273,8 @@ export class ArticleRepository {
             embedding = EXCLUDED.embedding
         `, [
           articleId,
-          chunk.chunkIndex,
-          chunk.chunkText,
+          chunk.index,
+          chunk.text,
           `[${chunk.embedding.join(',')}]`
         ]);
       }
@@ -319,6 +326,7 @@ export class ArticleRepository {
             a.link,
             a.description,
             a.content,
+            a.summary,
             a.pub_date,
             a.author,
             a.source,
@@ -340,6 +348,7 @@ export class ArticleRepository {
             a.link,
             a.description,
             a.content,
+            a.summary,
             a.pub_date,
             a.author,
             a.source,
@@ -359,6 +368,7 @@ export class ArticleRepository {
             link,
             description,
             content,
+            summary,
             pub_date,
             author,
             source,
@@ -387,6 +397,7 @@ export class ArticleRepository {
         link: row.link,
         description: row.description,
         content: row.content,
+        summary: row.summary,
         pubDate: row.pub_date,
         author: row.author,
         source: row.source,

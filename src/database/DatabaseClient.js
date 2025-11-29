@@ -77,6 +77,7 @@ export class DatabaseClient {
           link TEXT NOT NULL,
           description TEXT,
           content TEXT NOT NULL,
+          summary TEXT,
           pub_date TIMESTAMP NOT NULL,
           author VARCHAR(255),
           source VARCHAR(100) NOT NULL,
@@ -86,6 +87,19 @@ export class DatabaseClient {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+      `);
+
+      // Add summary column if it doesn't exist (for existing databases)
+      await this.query(`
+        DO $$ 
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'articles' AND column_name = 'summary'
+          ) THEN
+            ALTER TABLE articles ADD COLUMN summary TEXT;
+          END IF;
+        END $$;
       `);
 
       // Create index for vector similarity search (HNSW for fast approximate search)
