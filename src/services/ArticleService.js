@@ -48,14 +48,21 @@ export class ArticleService {
       // Only fetch if content appears to be incomplete
       if (!article.hasFullContent() && article.link) {
         try {
+          console.log(`Fetching full content for: ${article.title.substring(0, 50)}...`);
           const fullContent = await this.contentFetcher.fetchArticleContent(article.link);
+          
           if (fullContent && fullContent.length > article.content.length) {
             article.updateContent(fullContent);
+            console.log(`✓ Fetched ${fullContent.length} chars for article`);
+          } else {
+            console.warn(`⚠ Content not improved for ${article.link} (got ${fullContent?.length || 0} chars)`);
           }
         } catch (error) {
           console.warn(`Failed to fetch full content for ${article.link}:`, error.message);
           // Continue with existing content if fetch fails
         }
+      } else if (article.hasFullContent()) {
+        console.log(`✓ Article already has full content (${article.content.length} chars)`);
       }
     });
 

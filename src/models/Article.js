@@ -50,8 +50,49 @@ export class Article {
    * @returns {boolean}
    */
   hasFullContent() {
+    // If content is empty or very short, it's not full content
+    if (!this.content || this.content.length < 200) {
+      return false;
+    }
+    
     // If content is significantly longer than description, assume it's full content
-    return this.content.length > this.description.length * 1.5;
+    if (this.description && this.content.length > this.description.length * 2) {
+      return true;
+    }
+    
+    // If content and description are very similar (likely both snippets), it's not full content
+    const similarity = this.calculateSimilarity(this.content, this.description);
+    if (similarity > 0.8 && this.content.length < 1000) {
+      return false;
+    }
+    
+    // If content is substantial (>1000 chars), assume it's full content
+    return this.content.length > 1000;
+  }
+
+  /**
+   * Calculates simple similarity between two strings
+   * @param {string} str1 - First string
+   * @param {string} str2 - Second string
+   * @returns {number} Similarity score between 0 and 1
+   */
+  calculateSimilarity(str1, str2) {
+    if (!str1 || !str2) return 0;
+    
+    const s1 = str1.toLowerCase().trim();
+    const s2 = str2.toLowerCase().trim();
+    
+    if (s1 === s2) return 1;
+    if (s1.length === 0 || s2.length === 0) return 0;
+    
+    // Check if one contains the other
+    if (s1.includes(s2) || s2.includes(s1)) {
+      const shorter = s1.length < s2.length ? s1 : s2;
+      const longer = s1.length >= s2.length ? s1 : s2;
+      return shorter.length / longer.length;
+    }
+    
+    return 0;
   }
 
   /**
