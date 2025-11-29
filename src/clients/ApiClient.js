@@ -53,11 +53,27 @@ export class ApiClient {
   }
 
   /**
-   * Fetches top stories IDs
+   * Fetches top stories IDs (most upvoted/popular)
    * @returns {Promise<number[]>}
    */
   async fetchTopStories() {
     return this.fetch('/topstories.json');
+  }
+
+  /**
+   * Fetches new stories IDs (latest/newest articles)
+   * @returns {Promise<number[]>}
+   */
+  async fetchNewStories() {
+    return this.fetch('/newstories.json');
+  }
+
+  /**
+   * Fetches best stories IDs (highest quality)
+   * @returns {Promise<number[]>}
+   */
+  async fetchBestStories() {
+    return this.fetch('/beststories.json');
   }
 
   /**

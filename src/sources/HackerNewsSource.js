@@ -11,7 +11,7 @@ import { NEWS_SOURCES } from '../config/constants.js';
  */
 export class HackerNewsSource extends NewsSource {
   constructor(
-    apiSource = new HackerNewsApiSource(),
+    apiSource = new HackerNewsApiSource(undefined, 'new'), // Default to 'new' for latest articles
     rssSource = new HackerNewsRssSource()
   ) {
     super();

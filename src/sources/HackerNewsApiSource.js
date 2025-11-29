@@ -9,9 +9,10 @@ import { NEWS_SOURCES } from '../config/constants.js';
  * Implements NewsSource interface (DIP)
  */
 export class HackerNewsApiSource extends NewsSource {
-  constructor(apiClient = new ApiClient()) {
+  constructor(apiClient = new ApiClient(), storyType = 'new') {
     super();
     this.apiClient = apiClient;
+    this.storyType = storyType; // 'new', 'top', or 'best'
   }
 
   /**
@@ -21,13 +22,38 @@ export class HackerNewsApiSource extends NewsSource {
    */
   async fetchArticles(limit) {
     try {
-      const storyIds = await this.apiClient.fetchTopStories();
-      const topStoryIds = storyIds.slice(0, limit);
-      const stories = await this.apiClient.fetchStories(topStoryIds);
+      // Fetch story IDs based on type (default to 'new' for latest articles)
+      let storyIds;
+      switch (this.storyType.toLowerCase()) {
+        case 'top':
+          storyIds = await this.apiClient.fetchTopStories();
+          break;
+        case 'best':
+          storyIds = await this.apiClient.fetchBestStories();
+          break;
+        case 'new':
+        default:
+          storyIds = await this.apiClient.fetchNewStories();
+          break;
+      }
+
+      const selectedStoryIds = storyIds.slice(0, limit);
+      const stories = await this.apiClient.fetchStories(selectedStoryIds);
       
-      return stories
+      // Map to articles and filter out nulls
+      const articles = stories
         .map(story => ArticleMapper.fromApiItem(story, this.getSourceName()))
         .filter(article => article !== null);
+      
+      // Sort by publication date (newest first) to maintain order
+      // Since parallel requests may return in different order
+      articles.sort((a, b) => {
+        const dateA = new Date(a.pubDate).getTime();
+        const dateB = new Date(b.pubDate).getTime();
+        return dateB - dateA; // Descending order (newest first)
+      });
+      
+      return articles;
     } catch (error) {
       throw new Error(`Failed to fetch Hacker News API articles: ${error.message}`);
     }

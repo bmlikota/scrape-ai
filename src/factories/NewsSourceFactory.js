@@ -31,7 +31,7 @@ export class NewsSourceFactory {
         return new HackerNewsRssSource();
 
       case NEWS_SOURCES.HACKER_NEWS_API:
-        return new HackerNewsApiSource();
+        return new HackerNewsApiSource(undefined, 'new'); // Default to 'new' for latest articles
 
       default:
         throw new Error(`Unknown news source: ${sourceIdentifier}`);
