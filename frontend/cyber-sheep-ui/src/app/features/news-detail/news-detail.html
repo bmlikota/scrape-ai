@@ -1,0 +1,54 @@
+<a routerLink="/dashboard" class="back-link">← Back to dashboard</a>
+
+@if (news$ | async; as news) {
+  <article class="news-detail">
+    <header>
+      <h1>{{ news.title }}</h1>
+      <p class="meta">
+        <span>{{ news.source }}</span>
+        <span>•</span>
+        <span>{{ news.publishedAt | date: 'short' }}</span>
+      </p>
+      <p class="meta">
+        <strong>Relevance:</strong>
+        {{ (news.relevanceScore * 100) | number : '1.0-0' }}%
+        ·
+        <strong>Confidence:</strong>
+        {{ (news.confidenceScore * 100) | number : '1.0-0' }}%
+      </p>
+      <div class="chips">
+        @for (cat of news.categories; track cat) {
+          <span class="chip chip--category">{{ cat }}</span>
+        }
+      </div>
+    </header>
+
+    <section class="summary">
+      <h2>AI Summary</h2>
+      <p>{{ news.summary }}</p>
+    </section>
+
+    <section class="trust">
+      <h2>Trust &amp; reliability</h2>
+      <p>
+        {{ getTrustLabel(news.confidenceScore) }}
+      </p>
+    </section>
+
+    @if (news.content) {
+      <section class="full-article">
+        <h2>Full article</h2>
+        <p>{{ news.content }}</p>
+      </section>
+    } @else {
+      <section class="original-link">
+        <a [href]="news.url" target="_blank" rel="noopener">
+          Open original article
+        </a>
+      </section>
+    }
+
+  </article>
+} @else {
+  <p>News item not found.</p>
+}

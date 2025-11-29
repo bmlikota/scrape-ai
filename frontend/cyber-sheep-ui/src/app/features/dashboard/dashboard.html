@@ -1,0 +1,53 @@
+<section class="dashboard">
+  <header class="dashboard__header">
+    <h1>Cyber Sentinel</h1>
+    <p>AI‑curated cybersecurity news from The Hacker News.</p>
+  </header>
+
+  <section class="dashboard__filters">
+    <div class="dashboard__filters-main">
+        <span class="tag">Personalized feed</span>
+        <span class="dashboard__filters-text">
+        Categories:
+        <strong>{{ filtersSummary().categoriesLabel }}</strong>
+        · Min relevance:
+        <strong>{{ filtersSummary().minRelevanceLabel }}</strong>
+        · Min confidence:
+        <strong>{{ filtersSummary().minConfidenceLabel }}</strong>
+        </span>
+    </div>
+
+    <div class="dashboard__filters-right">
+        <input
+            type="search"
+            class="dashboard__search"
+            placeholder="Search in title, summary, categories…"
+            #searchBox
+            [value]="searchTerm()"
+            (input)="searchTerm.set(searchBox.value)"
+            />
+
+        <a routerLink="/onboarding" class="dashboard__filters-link">
+        Adjust preferences
+        </a>
+    </div>
+    </section>
+
+    <p class="dashboard__results">
+        Showing
+        <strong>{{ resultsStats().visible }}</strong>
+        of
+        <strong>{{ resultsStats().total }}</strong>
+        articles that match your preferences and search.
+    </p>
+
+  @if (loading()) {
+    <p class="dashboard__loading">Loading latest news…</p>
+  } @else {
+    <div class="dashboard__list">
+      @for (item of filteredNews(); track item.id) {
+        <app-news-card [news]="item"></app-news-card>
+      }
+    </div>
+  }
+</section>

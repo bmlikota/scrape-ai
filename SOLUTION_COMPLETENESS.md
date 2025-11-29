@@ -303,3 +303,7 @@ The planned features (multi-model consensus and notifications) represent **strat
 **Current Status**: Core MVP complete and functional
 **Next Steps**: Implement notification system and multi-model consensus verification
 
+## 🎥 MVP Demo Video
+
+[Watch the MVP Demo Video](YOUR_VIDEO_LINK_HERE)
+

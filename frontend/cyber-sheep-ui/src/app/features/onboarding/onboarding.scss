@@ -1,0 +1,155 @@
+.onboarding {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 2.5rem;
+  color: #f9fafb;
+}
+
+.onboarding h1 {
+  margin: 0 0 0.4rem;
+  font-size: 1.9rem;
+  font-weight: 600;
+}
+
+.onboarding > p {
+  margin: 0 0 1.5rem;
+  color: #9ca3af;
+  font-size: 0.95rem;
+}
+
+.onboarding__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.25rem 1rem 1.5rem;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.6);
+}
+
+.onboarding__form fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.onboarding__form legend {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: #e5e7eb;
+}
+
+/* Categories */
+
+.onboarding__categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+}
+
+.checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(30, 64, 175, 0.35);
+  border: 1px solid rgba(59, 130, 246, 0.7);
+  font-size: 0.8rem;
+  color: #e5edff;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-row input {
+  accent-color: #60a5fa;
+}
+
+/* Thresholds */
+
+.onboarding__thresholds {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem 1rem;
+}
+
+.onboarding__thresholds label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: #e5e7eb;
+}
+
+.onboarding__thresholds input[type='number'] {
+  width: 80%;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  background: rgba(15, 23, 42, 0.95);
+  color: #e5e7eb;
+  font-size: 0.85rem;
+}
+
+.onboarding__thresholds input[type='number']::placeholder {
+  color: #6b7280;
+}
+
+.onboarding__thresholds input[type='number']:focus {
+  outline: none;
+  border-color: rgba(96, 165, 250, 0.9);
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.8);
+}
+
+/* Primary button – reuse look from rest of app if you have one */
+
+.primary-button {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(90deg, #38bdf8, #6366f1);
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.4);
+  transition:
+    transform 0.1s ease-out,
+    box-shadow 0.1s ease-out,
+    filter 0.1s ease-out;
+}
+
+.primary-button:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 40px rgba(37, 99, 235, 0.55);
+}
+
+.primary-button:active {
+  transform: translateY(0);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
+}
+
+/* Mobile tweaks */
+
+@media (max-width: 640px) {
+  .onboarding {
+    padding-inline: 1rem;
+  }
+
+  .onboarding__thresholds {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .primary-button {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+}

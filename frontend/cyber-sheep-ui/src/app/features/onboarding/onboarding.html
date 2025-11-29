@@ -1,0 +1,50 @@
+<section class="onboarding">
+  <h1>Welcome to Cyber Sentinel</h1>
+  <p>
+    Choose what kind of cybersecurity news you care about and how strict the
+    AI should be when filtering and scoring articles.
+  </p>
+
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="onboarding__form">
+    <fieldset>
+        <legend>Categories of interest</legend>
+
+        <div class="onboarding__categories" formArrayName="categories">
+            @for (cat of categories(); let i = $index; track cat) {
+            <label class="checkbox-row">
+                <input type="checkbox" [formControlName]="i" />
+                <span>{{ cat }}</span>
+            </label>
+            }
+        </div>
+    </fieldset>
+
+    <fieldset class="onboarding__thresholds">
+      <legend>AI thresholds</legend>
+
+      <label>
+        Minimum relevance (%)
+        <input
+          type="number"
+          min="0"
+          max="100"
+          formControlName="minRelevancePercent"
+        />
+      </label>
+
+      <label>
+        Minimum confidence (%)
+        <input
+          type="number"
+          min="0"
+          max="100"
+          formControlName="minConfidencePercent"
+        />
+      </label>
+    </fieldset>
+
+    <button type="submit" class="primary-button">
+      Save preferences &amp; open dashboard
+    </button>
+  </form>
+</section>

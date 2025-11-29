@@ -2,6 +2,12 @@
 
 AI-powered system that automatically collects, filters, summarizes, and presents cybersecurity news in a fast and user-centric manner.
 
+## 🎥 MVP Demo Video
+
+[Watch the MVP Demo Video](YOUR_VIDEO_LINK_HERE)
+
+*Replace `YOUR_VIDEO_LINK_HERE` with your YouTube, Google Drive, Loom, or other video link*
+
 ## 📁 Project Structure
 
 ```

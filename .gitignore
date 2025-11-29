@@ -1,7 +1,8 @@
 # Dependencies
 node_modules/
 backend/node_modules/
-frontend/*/node_modules/
+frontend/**/node_modules/
+frontend/cyber-sheep-ui/node_modules/
 
 # Environment variables
 .env
