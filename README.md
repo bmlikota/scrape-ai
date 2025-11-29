@@ -77,7 +77,12 @@ GET /api/articles?limit=30&source=thehackernews&fetchFullContent=false
   - `true` or `1` - Fetches full content from article URLs (slower but complete)
   - `false` or `0` - Uses RSS feed content only (faster but may be snippets)
   
-**Note:** RSS feeds often only provide article snippets. Set `fetchFullContent=true` to get complete article text by fetching from the article URL.
+**Important:** RSS feeds typically only provide article snippets (first few sentences). To get the **complete article text**, you **must** set `fetchFullContent=true`. This will fetch and parse the full article from the article URL.
+
+**Example with full content:**
+```bash
+GET /api/articles?limit=5&source=thehackernews&fetchFullContent=true
+```
 
 **Example Response:**
 ```json
