@@ -226,17 +226,49 @@ Content-Type: application/json
 {
   "success": true,
   "count": 15,
+  "limit": 20,
+  "similarityThreshold": 0.75,
   "articles": [
     {
-      "id": "46087061",
+      "articleId": "thehackernews-https://thehackernews.com/article",
       "title": "Article Title",
-      "link": "https://example.com/article",
-      "similarity": 0.89,
-      "matchedChunkIndex": 2
+      "link": "https://thehackernews.com/article",
+      "description": "Article description...",
+      "summary": "Sentence 1. Sentence 2. Sentence 3. Sentence 4.",
+      "content": "Full article content...",
+      "pubDate": "2024-01-01T00:00:00.000Z",
+      "author": "Author Name",
+      "source": "thehackernews",
+      "score": 100,
+      "comments": 50,
+      "similarity": 0.8923,
+      "relevance": 89.23,
+      "distance": 0.1077
     }
-  ]
+  ],
+  "metadata": {
+    "queryTokens": 15,
+    "resultsCount": 15,
+    "averageSimilarity": 0.8234,
+    "averageRelevance": 82.34,
+    "searchDuration": "245ms"
+  }
 }
 ```
+
+#### Response Fields
+
+**Article Fields:**
+- `similarity` (0-1): Cosine similarity score (higher = more relevant)
+- `relevance` (0-100): Similarity as percentage (easier to read)
+- `distance` (0-1): Cosine distance (1 - similarity, lower = more relevant)
+
+**Metadata Fields:**
+- `queryTokens`: Number of tokens used to embed the search query
+- `resultsCount`: Number of articles returned
+- `averageSimilarity`: Average similarity score of all results
+- `averageRelevance`: Average relevance percentage
+- `searchDuration`: Time taken for the search operation
 
 ---
 

@@ -20,7 +20,7 @@ export class SemanticSearchService {
    * @param {number} similarityThreshold - Minimum similarity score (0-1)
    * @returns {Promise<Array>} Articles ordered by relevance
    */
-  async search(prompt, limit = 10, similarityThreshold = 0.7) {
+  async search(prompt, limit = 10, similarityThreshold = 0.2) {
     const startTime = Date.now();
 
     if (!prompt || prompt.trim().length === 0) {
@@ -28,46 +28,157 @@ export class SemanticSearchService {
     }
 
     try {
-      Logger.info('Starting semantic search', {
+      Logger.info('🔍 === SEMANTIC SEARCH STARTED ===', {
         prompt: prompt.substring(0, 100),
+        promptLength: prompt.length,
         limit,
         similarityThreshold
       });
 
-      // Generate embedding for user prompt
-      const queryEmbedding = await this.embeddingService.generateEmbedding(prompt);
+      // Check database first
+      const articleCount = await this.repository.count();
+      Logger.info('📊 Database status', {
+        totalArticles: articleCount,
+        hasArticles: articleCount > 0
+      });
 
-      Logger.debug('Query embedding generated, searching database', {
-        embeddingDimensions: queryEmbedding.length
+      if (articleCount === 0) {
+        Logger.warn('⚠️ No articles in database - search will return empty results');
+        return {
+          articles: [],
+          metadata: {
+            queryTokens: 0,
+            resultsCount: 0,
+            averageSimilarity: 0,
+            averageRelevance: 0,
+            searchDuration: `${Date.now() - startTime}ms`,
+            warning: 'No articles in database'
+          }
+        };
+      }
+
+      // Generate embedding for user prompt
+      Logger.info('🔄 Generating embedding for query...', {
+        promptPreview: prompt.substring(0, 50)
+      });
+      
+      const embeddingResult = await this.embeddingService.generateEmbedding(prompt);
+      const queryEmbedding = embeddingResult.embedding;
+
+      Logger.success('✅ Query embedding generated', {
+        embeddingDimensions: queryEmbedding.length,
+        tokens: embeddingResult.tokens,
+        embeddingPreview: queryEmbedding.slice(0, 5).map(v => v.toFixed(4))
       });
 
       // Find similar articles using vector similarity (includes chunked articles)
+      Logger.info('🔎 Searching database for similar articles...', {
+        queryEmbeddingLength: queryEmbedding.length,
+        limit,
+        similarityThreshold,
+        minRelevance: `${(similarityThreshold * 100).toFixed(1)}%`
+      });
+
       const articles = await this.repository.findBySimilarityWithChunks(
         queryEmbedding,
         limit,
         similarityThreshold
       );
 
-      const duration = Date.now() - startTime;
-      
-      Logger.success('Semantic search completed', {
+      Logger.info('📋 Database search completed', {
         resultsFound: articles.length,
-        duration: `${duration}ms`,
-        averageSimilarity: articles.length > 0 
-          ? (articles.reduce((sum, a) => sum + a.similarity, 0) / articles.length).toFixed(3)
-          : 0
+        requestedLimit: limit,
+        similarityThreshold: similarityThreshold
       });
 
-      if (articles.length > 0) {
-        Logger.debug('Top results', {
-          top3: articles.slice(0, 3).map(a => ({
-            title: a.title.substring(0, 50),
-            similarity: a.similarity.toFixed(3)
+      const duration = Date.now() - startTime;
+      
+      Logger.info('📊 Processing search results...', {
+        rawResultsCount: articles.length
+      });
+
+      // Enhance articles with metadata
+      const enhancedArticles = articles.map((article, index) => {
+        const relevance = parseFloat((article.similarity * 100).toFixed(2));
+        const similarity = parseFloat(article.similarity.toFixed(4));
+        const distance = parseFloat((1 - article.similarity).toFixed(4));
+        
+        Logger.debug(`📄 Result ${index + 1}`, {
+          articleId: article.articleId,
+          title: article.title.substring(0, 60),
+          similarity: similarity,
+          relevance: `${relevance}%`,
+          distance: distance
+        });
+
+        return {
+          ...article,
+          relevance: relevance,
+          similarity: similarity,
+          distance: distance
+        };
+      });
+
+      const avgSimilarity = articles.length > 0 
+        ? (articles.reduce((sum, a) => sum + a.similarity, 0) / articles.length)
+        : 0;
+
+      Logger.success('✅ === SEMANTIC SEARCH COMPLETED ===', {
+        resultsFound: articles.length,
+        requestedLimit: limit,
+        duration: `${duration}ms`,
+        averageSimilarity: avgSimilarity.toFixed(4),
+        averageRelevance: `${(avgSimilarity * 100).toFixed(2)}%`,
+        queryTokens: embeddingResult.tokens,
+        similarityThreshold: similarityThreshold
+      });
+
+      if (articles.length === 0) {
+        Logger.warn('⚠️ No articles found matching criteria', {
+          possibleReasons: [
+            'Similarity threshold too high',
+            'No articles in database',
+            'Query embedding not matching any article embeddings',
+            'Query topic may not match article topics'
+          ],
+          suggestions: [
+            `Try lowering similarityThreshold (current: ${similarityThreshold}, recommended: 0.1-0.3)`,
+            'Check if articles exist in database',
+            'Try a different search query',
+            'Note: Very low similarity scores (< 0.3) may indicate articles are not relevant to your query'
+          ]
+        });
+      } else {
+        // Check if results have very low similarity (might not be relevant)
+        const avgSimilarity = articles.reduce((sum, a) => sum + a.similarity, 0) / articles.length;
+        if (avgSimilarity < 0.3) {
+          Logger.warn('⚠️ Low similarity scores detected', {
+            averageSimilarity: avgSimilarity.toFixed(4),
+            averageRelevance: `${(avgSimilarity * 100).toFixed(2)}%`,
+            warning: 'Results may not be highly relevant to your query. Consider refining your search terms.'
+          });
+        }
+        Logger.info('🎯 Top 3 results:', {
+          topResults: enhancedArticles.slice(0, 3).map((a, i) => ({
+            rank: i + 1,
+            title: a.title.substring(0, 60),
+            relevance: `${a.relevance}%`,
+            similarity: a.similarity.toFixed(4),
+            articleId: a.articleId
           }))
         });
       }
 
-      return articles;
+      return {
+        articles: enhancedArticles,
+        metadata: {
+          queryTokens: embeddingResult.tokens,
+          resultsCount: articles.length,
+          averageSimilarity: parseFloat(avgSimilarity.toFixed(4)),
+          averageRelevance: parseFloat((avgSimilarity * 100).toFixed(2)),
+          searchDuration: `${duration}ms`
+        }
+      };
     } catch (error) {
       const duration = Date.now() - startTime;
       Logger.error('Semantic search failed', {

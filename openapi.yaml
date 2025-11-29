@@ -1,0 +1,631 @@
+openapi: 3.0.3
+info:
+  title: SheepAI - Cybersecurity News Aggregator API
+  description: |
+    AI-powered system that automatically collects, filters, summarizes, and presents cybersecurity news.
+    
+    ## Features
+    - Fetch articles from The Hacker News (thehackernews.com)
+    - Automatic content scraping and summarization
+    - Vector embeddings for semantic search
+    - PostgreSQL with pgvector for similarity search
+    
+    ## Authentication
+    Currently no authentication required. All endpoints are publicly accessible.
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@sheepai.com
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+  - url: https://api.sheepai.com
+    description: Production server (if applicable)
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Articles
+    description: Article management and retrieval
+  - name: Search
+    description: Semantic search functionality
+  - name: Storage
+    description: Article storage and embedding operations
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns server status, timestamp, and database connection status
+      operationId: getHealth
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2024-01-01T00:00:00.000Z"
+                  database:
+                    type: string
+                    example: "connected"
+                  uptime:
+                    type: number
+                    example: 12345
+
+  /api/articles:
+    get:
+      tags:
+        - Articles
+      summary: Get articles
+      description: |
+        Retrieves a list of articles based on query parameters.
+        Supports filtering by source, limit, and fetching full content.
+      operationId: getArticles
+      parameters:
+        - name: limit
+          in: query
+          description: Number of articles to fetch (1-100)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 30
+        - name: source
+          in: query
+          description: News source identifier (thehackernews or thn)
+          required: false
+          schema:
+            type: string
+            enum: [thehackernews, thn]
+            default: thehackernews
+        - name: fetchFullContent
+          in: query
+          description: Whether to fetch full article content from URLs
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: ids
+          in: query
+          description: Comma-separated article IDs to fetch
+          required: false
+          schema:
+            type: string
+            example: "thehackernews-https://thehackernews.com/article1,thehackernews-https://thehackernews.com/article2"
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticlesResponse'
+        '400':
+          description: Bad request (validation error)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    /{id}:
+      get:
+        tags:
+          - Articles
+        summary: Get article by ID
+        description: Retrieves a single article by its unique article_id
+        operationId: getArticleById
+        parameters:
+          - name: id
+            in: path
+            required: true
+            description: The article's unique ID
+            schema:
+              type: string
+              example: "thehackernews-https://thehackernews.com/article-title"
+          - name: fetchFullContent
+            in: query
+            description: Whether to fetch full article content from URL
+            required: false
+            schema:
+              type: boolean
+              default: false
+        responses:
+          '200':
+            description: Article found
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    article:
+                      $ref: '#/components/schemas/Article'
+          '404':
+            description: Article not found
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+          '400':
+            description: Bad request
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+
+    /search:
+      get:
+        tags:
+          - Search
+        summary: Semantic search (GET)
+        description: |
+          Performs semantic search using vector similarity.
+          Returns articles ordered by relevance to the search prompt.
+        operationId: searchArticlesGet
+        parameters:
+          - name: prompt
+            in: query
+            required: true
+            description: Natural language search query
+            schema:
+              type: string
+              example: "cybersecurity vulnerabilities in python packages"
+          - name: limit
+            in: query
+            description: Maximum number of results (1-100)
+            required: false
+            schema:
+              type: integer
+              minimum: 1
+              maximum: 100
+              default: 10
+          - name: similarityThreshold
+            in: query
+            description: Minimum similarity score (0.0-1.0). Lower values return more results but may be less relevant.
+            required: false
+            schema:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 1
+              default: 0.2
+        responses:
+          '200':
+            description: Search completed successfully
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/SearchResponse'
+          '400':
+            description: Bad request (missing prompt or invalid parameters)
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+          '500':
+            description: Internal server error
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+
+      post:
+        tags:
+          - Search
+        summary: Semantic search (POST)
+        description: |
+          Performs semantic search using vector similarity.
+          Supports both JSON body and query parameters.
+        operationId: searchArticlesPost
+        requestBody:
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - prompt
+                properties:
+                  prompt:
+                    type: string
+                    description: Natural language search query
+                    example: "cybersecurity vulnerabilities in python packages"
+                  limit:
+                    type: integer
+                    minimum: 1
+                    maximum: 100
+                    default: 10
+                    description: Maximum number of results
+                  similarityThreshold:
+                    type: number
+                    format: float
+                    minimum: 0
+                    maximum: 1
+                    default: 0.2
+                    description: Minimum similarity score (0.0-1.0)
+        responses:
+          '200':
+            description: Search completed successfully
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/SearchResponse'
+          '400':
+            description: Bad request
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+
+    /store:
+      post:
+        tags:
+          - Storage
+        summary: Store articles with embeddings
+        description: |
+          Stores articles in the database with vector embeddings.
+          Only new articles (not already in DB) will be embedded and stored.
+          Duplicates are automatically skipped.
+        operationId: storeArticles
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - articles
+                properties:
+                  articles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ArticleInput'
+        responses:
+          '200':
+            description: Articles processed successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    stored:
+                      type: integer
+                      description: Number of articles successfully stored
+                      example: 5
+                    skipped:
+                      type: integer
+                      description: Number of articles skipped (duplicates or errors)
+                      example: 2
+                    total:
+                      type: integer
+                      description: Total number of articles in request
+                      example: 7
+          '400':
+            description: Bad request
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+
+    /fetch-and-store:
+      post:
+        tags:
+          - Storage
+        summary: Fetch, embed, and store articles (All-in-One)
+        description: |
+          Fetches new articles from thehackernews.com, generates embeddings,
+          creates summaries, and stores them in the database.
+          
+          Perfect for automation via cron jobs.
+          
+          This endpoint:
+          1. Fetches articles from RSS feed
+          2. Scrapes full content from URLs
+          3. Generates 4-sentence summaries
+          4. Creates vector embeddings
+          5. Stores everything in the database
+        operationId: fetchAndStoreArticles
+        parameters:
+          - name: limit
+            in: query
+            description: Number of articles to fetch (1-100)
+            required: false
+            schema:
+              type: integer
+              minimum: 1
+              maximum: 100
+              default: 30
+        requestBody:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  limit:
+                    type: integer
+                    minimum: 1
+                    maximum: 100
+                    default: 30
+                    description: Number of articles to fetch
+        responses:
+          '200':
+            description: Articles fetched and stored successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "Articles fetched and stored successfully"
+                    fetched:
+                      type: integer
+                      description: Number of articles fetched from source
+                      example: 30
+                    stored:
+                      type: integer
+                      description: Number of articles successfully stored
+                      example: 28
+                    skipped:
+                      type: integer
+                      description: Number of articles skipped (duplicates)
+                      example: 2
+                    tokens:
+                      type: object
+                      description: Token usage for OpenAI API calls
+                      properties:
+                        summary:
+                          type: integer
+                          description: Tokens used for summarization
+                          example: 1250
+                        embedding:
+                          type: integer
+                          description: Tokens used for embeddings
+                          example: 3450
+                        total:
+                          type: integer
+                          description: Total tokens used
+                          example: 4700
+          '400':
+            description: Bad request (invalid limit)
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+          '500':
+            description: Internal server error
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    Article:
+      type: object
+      required:
+        - id
+        - title
+        - link
+        - content
+        - pubDate
+        - source
+      properties:
+        id:
+          type: string
+          description: Unique article identifier
+          example: "thehackernews-https://thehackernews.com/article-title"
+        title:
+          type: string
+          description: Article title
+          example: "Critical Security Vulnerability Found in Python Package"
+        link:
+          type: string
+          format: uri
+          description: URL to the original article
+          example: "https://thehackernews.com/article"
+        description:
+          type: string
+          description: Article description/snippet
+          example: "A critical security vulnerability has been discovered..."
+        summary:
+          type: string
+          description: 4-sentence AI-generated summary
+          example: "Sentence 1. Sentence 2. Sentence 3. Sentence 4."
+        content:
+          type: string
+          description: Full article content
+          example: "Full article text content here..."
+        pubDate:
+          type: string
+          format: date-time
+          description: Publication date
+          example: "2024-01-01T00:00:00.000Z"
+        author:
+          type: string
+          description: Article author
+          example: "John Doe"
+        source:
+          type: string
+          description: News source identifier
+          enum: [thehackernews]
+          example: "thehackernews"
+        categories:
+          type: array
+          items:
+            type: string
+          description: Article categories/tags
+          example: ["Security", "Vulnerability"]
+        score:
+          type: integer
+          description: Article score (if available)
+          example: 100
+        comments:
+          type: integer
+          description: Number of comments (if available)
+          example: 50
+
+    ArticleInput:
+      type: object
+      required:
+        - id
+        - title
+        - link
+        - content
+        - pubDate
+        - source
+      properties:
+        id:
+          type: string
+          description: Unique article identifier
+        title:
+          type: string
+        link:
+          type: string
+          format: uri
+        description:
+          type: string
+        content:
+          type: string
+        pubDate:
+          type: string
+          format: date-time
+        author:
+          type: string
+        source:
+          type: string
+          enum: [thehackernews]
+        score:
+          type: integer
+        comments:
+          type: integer
+
+    ArticleWithRelevance:
+      allOf:
+        - $ref: '#/components/schemas/Article'
+        - type: object
+          properties:
+            similarity:
+              type: number
+              format: float
+              description: Cosine similarity score (0-1), higher is more relevant
+              example: 0.8923
+            relevance:
+              type: number
+              format: float
+              description: Relevance as percentage (0-100)
+              example: 89.23
+            distance:
+              type: number
+              format: float
+              description: Cosine distance (0-1), lower is more relevant
+              example: 0.1077
+            matchedChunkIndex:
+              type: integer
+              nullable: true
+              description: Chunk index if article was chunked (null for non-chunked articles)
+              example: 2
+
+    ArticlesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        count:
+          type: integer
+          description: Number of articles returned
+          example: 30
+        articles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Article'
+
+    SearchResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        count:
+          type: integer
+          description: Number of articles found
+          example: 10
+        limit:
+          type: integer
+          description: Maximum results requested
+          example: 10
+        similarityThreshold:
+          type: number
+          format: float
+          description: Minimum similarity threshold used
+          example: 0.2
+        articles:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArticleWithRelevance'
+        metadata:
+          type: object
+          properties:
+            queryTokens:
+              type: integer
+              description: Tokens used to embed the search query
+              example: 15
+            resultsCount:
+              type: integer
+              description: Number of results returned
+              example: 10
+            averageSimilarity:
+              type: number
+              format: float
+              description: Average similarity score of all results
+              example: 0.8234
+            averageRelevance:
+              type: number
+              format: float
+              description: Average relevance percentage
+              example: 82.34
+            searchDuration:
+              type: string
+              description: Time taken for search operation
+              example: "245ms"
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: Error message
+          example: "Search prompt is required"
+        errors:
+          type: array
+          items:
+            type: string
+          description: Validation errors (if applicable)
+          example: ["Limit must be a number between 1 and 100"]
+        usage:
+          type: object
+          description: Usage instructions (if applicable)
+          nullable: true
+

@@ -307,13 +307,90 @@ export class ArticleRepository {
   async findBySimilarityWithChunks(queryEmbedding, limit = 10, similarityThreshold = 0.7) {
     const startTime = Date.now();
     
-    Logger.debug('Executing vector similarity search with chunks', {
+    Logger.info('🔍 === DATABASE SIMILARITY SEARCH STARTED ===', {
       embeddingDimensions: queryEmbedding.length,
       limit,
-      similarityThreshold
+      similarityThreshold,
+      minRelevance: `${(similarityThreshold * 100).toFixed(1)}%`
     });
 
     try {
+      // Check how many articles have embeddings
+      const articlesWithEmbeddings = await this.db.query(`
+        SELECT COUNT(*) as count 
+        FROM articles 
+        WHERE embedding IS NOT NULL
+      `);
+      
+      const chunksCount = await this.db.query(`
+        SELECT COUNT(*) as count 
+        FROM article_chunks
+      `);
+
+      Logger.info('📊 Database embedding status', {
+        articlesWithEmbeddings: parseInt(articlesWithEmbeddings.rows[0].count, 10),
+        totalChunks: parseInt(chunksCount.rows[0].count, 10),
+        hasEmbeddings: parseInt(articlesWithEmbeddings.rows[0].count, 10) > 0 || parseInt(chunksCount.rows[0].count, 10) > 0
+      });
+
+      // DEBUG: Check actual similarity scores (without threshold) to see what we're working with
+      const debugQuery = await this.db.query(`
+        WITH all_similarities AS (
+          SELECT 
+            a.article_id,
+            a.title,
+            1 - (a.embedding <=> $1::vector) AS similarity
+          FROM articles a
+          WHERE a.embedding IS NOT NULL
+          
+          UNION ALL
+          
+          SELECT 
+            a.article_id,
+            a.title,
+            1 - (c.embedding <=> $1::vector) AS similarity
+          FROM article_chunks c
+          JOIN articles a ON a.article_id = c.article_id
+        )
+        SELECT DISTINCT ON (article_id)
+          article_id,
+          title,
+          similarity
+        FROM all_similarities
+        ORDER BY article_id, similarity DESC
+        LIMIT 10
+      `, [`[${queryEmbedding.join(',')}]`]);
+
+      if (debugQuery.rows.length > 0) {
+        const similarities = debugQuery.rows.map(r => parseFloat(r.similarity));
+        const maxSimilarity = Math.max(...similarities);
+        const minSimilarity = Math.min(...similarities);
+        const avgSimilarity = similarities.reduce((a, b) => a + b, 0) / similarities.length;
+
+        Logger.info('🔍 DEBUG: Actual similarity scores (without threshold)', {
+          totalArticlesChecked: debugQuery.rows.length,
+          maxSimilarity: maxSimilarity.toFixed(4),
+          minSimilarity: minSimilarity.toFixed(4),
+          avgSimilarity: avgSimilarity.toFixed(4),
+          threshold: similarityThreshold,
+          articlesAboveThreshold: similarities.filter(s => s >= similarityThreshold).length,
+          top3Similarities: debugQuery.rows.slice(0, 3).map(r => ({
+            title: r.title?.substring(0, 40) || 'N/A',
+            similarity: parseFloat(r.similarity).toFixed(4),
+            relevance: `${(parseFloat(r.similarity) * 100).toFixed(2)}%`
+          }))
+        });
+
+        if (maxSimilarity < similarityThreshold) {
+          Logger.warn('⚠️ Highest similarity is below threshold!', {
+            highestSimilarity: maxSimilarity.toFixed(4),
+            threshold: similarityThreshold,
+            recommendation: `Try lowering similarityThreshold to ${Math.max(0.1, (maxSimilarity - 0.1)).toFixed(2)} or lower`
+          });
+        }
+      } else {
+        Logger.warn('⚠️ DEBUG: No articles found even without threshold - possible embedding format issue');
+      }
       // Search both articles table and chunks table
       // Use UNION ALL to combine results, then group by article_id
       // Return the best similarity score per article
@@ -391,28 +468,70 @@ export class ArticleRepository {
       ]);
 
       const duration = Date.now() - startTime;
-      const articles = result.rows.map(row => ({
-        articleId: row.article_id,
-        title: row.title,
-        link: row.link,
-        description: row.description,
-        content: row.content,
-        summary: row.summary,
-        pubDate: row.pub_date,
-        author: row.author,
-        source: row.source,
-        score: row.score,
-        comments: row.comments,
-        similarity: parseFloat(row.similarity),
-        matchedChunkIndex: row.chunk_index,
-        matchedChunkText: row.chunk_text
-      }));
+      
+      Logger.info('📋 Raw database query results', {
+        rowsReturned: result.rows.length,
+        queryDuration: `${duration}ms`
+      });
 
-      Logger.success('Vector similarity search with chunks completed', {
+      if (result.rows.length === 0) {
+        Logger.warn('⚠️ Database query returned 0 results', {
+          possibleReasons: [
+            'No articles match similarity threshold',
+            'No embeddings in database',
+            'Query embedding format issue'
+          ],
+          queryInfo: {
+            limit,
+            similarityThreshold,
+            embeddingDimensions: queryEmbedding.length
+          }
+        });
+      } else {
+        Logger.info('✅ Database query successful', {
+          resultsFound: result.rows.length,
+          topSimilarity: result.rows.length > 0 ? parseFloat(result.rows[0].similarity).toFixed(4) : 'N/A',
+          lowestSimilarity: result.rows.length > 0 ? parseFloat(result.rows[result.rows.length - 1].similarity).toFixed(4) : 'N/A'
+        });
+      }
+
+      const articles = result.rows.map((row, index) => {
+        const article = {
+          articleId: row.article_id,
+          title: row.title,
+          link: row.link,
+          description: row.description,
+          content: row.content,
+          summary: row.summary,
+          pubDate: row.pub_date,
+          author: row.author,
+          source: row.source,
+          score: row.score,
+          comments: row.comments,
+          similarity: parseFloat(row.similarity),
+          matchedChunkIndex: row.chunk_index,
+          matchedChunkText: row.chunk_text
+        };
+
+        if (index < 3) {
+          Logger.debug(`📄 Article ${index + 1} from database`, {
+            articleId: article.articleId,
+            title: article.title.substring(0, 50),
+            similarity: article.similarity.toFixed(4),
+            relevance: `${(article.similarity * 100).toFixed(2)}%`,
+            hasChunk: !!row.chunk_index
+          });
+        }
+
+        return article;
+      });
+
+      Logger.success('✅ === DATABASE SIMILARITY SEARCH COMPLETED ===', {
         resultsFound: articles.length,
+        requestedLimit: limit,
         duration: `${duration}ms`,
         avgSimilarity: articles.length > 0
-          ? (articles.reduce((sum, a) => sum + a.similarity, 0) / articles.length).toFixed(3)
+          ? (articles.reduce((sum, a) => sum + a.similarity, 0) / articles.length).toFixed(4)
           : 0
       });
 

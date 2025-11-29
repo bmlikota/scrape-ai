@@ -16,7 +16,8 @@ export function createArticleRoutes(articleController = new ArticleController())
   // Fetch, embed, and store articles in one call (for cronjobs)
   router.post('/fetch-and-store', (req, res) => articleController.fetchAndStoreArticles(req, res));
 
-  // Semantic search
+  // Semantic search (supports both GET and POST)
+  router.get('/search', (req, res) => articleController.searchArticles(req, res));
   router.post('/search', (req, res) => articleController.searchArticles(req, res));
 
   // Get articles by query parameters (source, limit, ids, etc.)

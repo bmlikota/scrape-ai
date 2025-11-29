@@ -190,15 +190,36 @@ export class ArticleController {
    */
   async searchArticles(req, res) {
     try {
-      Logger.info('POST /api/articles/search request received');
+      Logger.info(`${req.method} /api/articles/search request received`, {
+        hasBody: !!req.body,
+        hasQuery: !!req.query && Object.keys(req.query).length > 0,
+        method: req.method,
+        queryParams: req.query
+      });
 
-      const { prompt, limit = 10, similarityThreshold = 0.7 } = req.body;
+      // Handle both JSON body (POST) and query parameters (GET/POST)
+      const prompt = (req.body && req.body.prompt) || req.query?.prompt;
+      const limit = (req.body && req.body.limit) || req.query?.limit || 10;
+      const similarityThreshold = (req.body && req.body.similarityThreshold) || req.query?.similarityThreshold || 0.2;
 
       if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
-        Logger.warn('Invalid search request: prompt missing or empty');
+        Logger.warn('Invalid search request: prompt missing or empty', {
+          prompt: prompt,
+          hasBody: !!req.body,
+          queryParams: req.query
+        });
         return res.status(400).json({
           success: false,
-          error: 'Search prompt is required'
+          error: 'Search prompt is required.',
+          usage: {
+            'POST with JSON body': {
+              'Content-Type': 'application/json',
+              'body': { 'prompt': 'your search query', 'limit': 10, 'similarityThreshold': 0.7 }
+            },
+            'GET/POST with query params': {
+              'url': '/api/articles/search?prompt=your+search+query&limit=10&similarityThreshold=0.7'
+            }
+          }
         });
       }
 
@@ -215,18 +236,24 @@ export class ArticleController {
         req.app.locals.embeddingService
       );
 
-      const articles = await searchService.search(
+      const result = await searchService.search(
         prompt.trim(),
         parseInt(limit, 10),
         parseFloat(similarityThreshold)
       );
 
-      Logger.success('Semantic search completed', { resultsFound: articles.length });
+      Logger.success('Semantic search completed', { 
+        resultsFound: result.articles.length,
+        averageRelevance: result.metadata.averageRelevance
+      });
 
       res.json({
         success: true,
-        count: articles.length,
-        articles: articles
+        count: result.articles.length,
+        limit: parseInt(limit, 10),
+        similarityThreshold: parseFloat(similarityThreshold),
+        articles: result.articles,
+        metadata: result.metadata
       });
     } catch (error) {
       Logger.error('Error in searchArticles', {
